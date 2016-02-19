@@ -13421,12 +13421,16 @@ function hasOwnProperty(obj, prop) {
       , c
       , escaped = false
       , arg
+      , tmp
+      , leadingZero = false
       , precision
       , nextArg = function() { return args[argIndex++]; }
       , slurpNumber = function() {
           var digits = '';
-          while (fmt[i].match(/\d/))
+          while (/\d/.test(fmt[i])) {
             digits += fmt[i++];
+            c = fmt[i];
+          }
           return digits.length > 0 ? parseInt(digits) : null;
         }
       ;
@@ -13434,6 +13438,18 @@ function hasOwnProperty(obj, prop) {
       c = fmt[i];
       if (escaped) {
         escaped = false;
+        if (c == '.') {
+          leadingZero = false;
+          c = fmt[++i];
+        }
+        else if (c == '0' && fmt[i + 1] == '.') {
+          leadingZero = true;
+          i += 2;
+          c = fmt[i];
+        }
+        else {
+          leadingZero = true;
+        }
         precision = slurpNumber();
         switch (c) {
         case 'b': // number in binary
@@ -13450,7 +13466,11 @@ function hasOwnProperty(obj, prop) {
           result += parseInt(nextArg(), 10);
           break;
         case 'f': // floating point number
-          result += parseFloat(nextArg()).toFixed(precision || 6);
+          tmp = String(parseFloat(nextArg()).toFixed(precision || 6));
+          result += leadingZero ? tmp : tmp.replace(/^0/, '');
+          break;
+        case 'j': // JSON
+          result += JSON.stringify(nextArg());
           break;
         case 'o': // number in octal
           result += '0' + parseInt(nextArg(), 10).toString(8);
@@ -19866,7 +19886,7 @@ var BaseClient = (function (_events$EventEmitter) {
 exports['default'] = BaseClient;
 module.exports = exports['default'];
 
-}).call(this,"/src\\clients")
+}).call(this,"/src/clients")
 },{"../util/util.js":113,"events":22,"loglevel":51,"mqtt":53}],109:[function(require,module,exports){
 /**
  *****************************************************************************
@@ -20417,6 +20437,17 @@ var ManagedDeviceClient = (function (_DeviceClient) {
       throw new Error('cannot use quickstart for a managed device');
     }
 
+    this.ResponseCode = {
+      SUCCESS: 200,
+      ACCEPT: 202,
+      CHANGED: 204,
+      BADREQUEST: 400,
+      NOTFOUND: 404,
+      CONFLICT: 409,
+      ERROR: 500,
+      NOTIMPLEMENTED: 501
+    };
+
     this._deviceRequests = {};
     this._dmRequests = {};
   }
@@ -20703,42 +20734,60 @@ var ManagedDeviceClient = (function (_DeviceClient) {
       return reqId;
     }
   }, {
-    key: 'respondDeviceAction',
-    value: function respondDeviceAction(reqId, accept) {
+    key: 'publishDeviceNotify',
+    value: function publishDeviceNotify(field, value) {
       if (!this.isConnected) {
         throw new Error("client must be connected");
       }
 
-      if (!(0, _utilUtilJs.isDefined)(reqId) || !(0, _utilUtilJs.isDefined)(accept)) {
-        throw new Error("reqId and accept are required");
+      if (!(0, _utilUtilJs.isDefined)(field) || !(0, _utilUtilJs.isDefined)(value)) {
+        throw new Error("field and accept are required");
+      }
+
+      if (!(0, _utilUtilJs.isString)(field)) {
+        throw new Error("field must be a string");
+      }
+
+      var payload = new Object();
+
+      var reqId = (0, _utilUtilJs.generateUUID)();
+      payload.reqId = reqId;
+      payload.d = { "fields": [{ "field": field, "value": value }] };
+      payload = JSON.stringify(payload);
+
+      this._deviceRequests[reqId] = { topic: NOTIFY_TOPIC, payload: payload };
+
+      this.log.debug("Publishing device notify with payload : %s", payload);
+      this.mqtt.publish(NOTIFY_TOPIC, payload, QOS);
+
+      return this;
+    }
+  }, {
+    key: 'respondDeviceRequest',
+    value: function respondDeviceRequest(reqId, responseCode) {
+      if (!this.isConnected) {
+        throw new Error("client must be connected");
+      }
+
+      if (!(0, _utilUtilJs.isDefined)(reqId) || !(0, _utilUtilJs.isDefined)(responseCode)) {
+        throw new Error("reqId and responseCode are required");
       }
 
       if (!(0, _utilUtilJs.isString)(reqId)) {
         throw new Error("reqId must be a string");
       }
 
-      if (!(0, _utilUtilJs.isBoolean)(accept)) {
-        throw new Error("accept must be a boolean");
+      if (!(0, _utilUtilJs.isNumber)(responseCode)) {
+        throw new Error("responseCode must be a number");
       }
 
-      var request = this._dmRequests[reqId];
-      if (!(0, _utilUtilJs.isDefined)(request)) {
-        throw new Error("unknown request : %s", reqId);
-      }
-
-      var rc;
-      if (accept) {
-        rc = 202;
-      } else {
-        rc = 500;
-      }
-
+      var rc = responseCode;
       var payload = new Object();
       payload.rc = rc;
       payload.reqId = reqId;
       payload = JSON.stringify(payload);
 
-      this.log.debug("Publishing device action response with payload : %s", payload);
+      this.log.debug("Publishing device request response with payload : %s", payload);
       this.mqtt.publish(RESPONSE_TOPIC, payload, QOS);
 
       delete this._dmRequests[reqId];
@@ -20807,6 +20856,13 @@ var ManagedDeviceClient = (function (_DeviceClient) {
             this.log.error("[%s] Clear error codes action failed : %s", rc, request.payload);
           }
           break;
+        case NOTIFY_TOPIC:
+          if (rc == 200) {
+            this.log.debug("[%s] Notify action completed : %s", rc, request.payload);
+          } else {
+            this.log.error("[%s] Notify action failed : %s", rc, request.payload);
+          }
+          break;
         default:
           throw new Error("unknown action response");
       }
@@ -20842,6 +20898,14 @@ var ManagedDeviceClient = (function (_DeviceClient) {
           reqId: reqId,
           action: action
         });
+      } else {
+        if (topic == DM_UPDATE_TOPIC) {
+          this.emit('dmUpdate', payload);
+        } else if (topic == DM_OBSERVE_TOPIC) {
+          this.emit('dmObserve', payload);
+        } else if (topic == DM_CANCEL_OBSERVE_TOPIC) {
+          this.emit('dmCancel', payload);
+        }
       }
 
       return this;
