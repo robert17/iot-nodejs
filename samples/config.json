@@ -1,0 +1,10 @@
+{
+  "apiKey": "a-orgid-123456789",
+  "apiToken": "abcd1234",
+  "org": "quickstart",
+  "type": "mytype",
+  "id": "001122334455",
+  "auth-method": "token",
+  "auth-token": "password",
+  "port": 443
+}
