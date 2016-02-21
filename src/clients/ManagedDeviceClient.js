@@ -91,7 +91,7 @@ export default class ManagedDeviceClient extends DeviceClient {
     });
   }
 
-  manage(lifetime, supportDeviceActions, supportFirmwareActions){
+  manage(lifetime, supportDeviceActions, supportFirmwareActions, deviceInfo){
     if(!this.isConnected){
       throw new Error("client must be connected");
     }
@@ -130,6 +130,19 @@ export default class ManagedDeviceClient extends DeviceClient {
       }
     }
 
+    if(isDefined(deviceInfo)) {
+      d.deviceInfo = new Object();
+
+      d.deviceInfo.serialNumber = deviceInfo.serialNumber;
+      d.deviceInfo.manufacturer = deviceInfo.manufacturer;
+      d.deviceInfo.model = deviceInfo.model;
+      d.deviceInfo.deviceClass = deviceInfo.deviceClass;
+      d.deviceInfo.description = deviceInfo.description;
+      d.deviceInfo.fwVersion = deviceInfo.fwVersion;
+      d.deviceInfo.hwVersion = deviceInfo.hwVersion;
+      d.deviceInfo.descriptiveLocation = deviceInfo.descriptiveLocation;
+    }
+	
     var payload = new Object();
     payload.d = d;
 
