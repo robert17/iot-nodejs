@@ -19886,7 +19886,7 @@ var BaseClient = (function (_events$EventEmitter) {
 exports['default'] = BaseClient;
 module.exports = exports['default'];
 
-}).call(this,"/src\\clients")
+}).call(this,"/src/clients")
 },{"../util/util.js":113,"events":22,"loglevel":51,"mqtt":53}],109:[function(require,module,exports){
 /**
  *****************************************************************************

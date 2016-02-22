@@ -52,7 +52,7 @@ function sendDownloadRequest() {
   console.log('Initiate firmware download');
 
   var host = 'https://'+config.org+'.internetofthings.ibmcloud.com/api/v0002/mgmt/requests';
-  var payload = {"action": "firmware/download", "parameters": [{"name":"uri","value":"http://9.3.177.124/kernel.svg"},{"name":"name","value":"firmwareName"},{"name":"version","value":"0.0.2"}], "devices": [{"typeId":config.type,"deviceId":config.id}]};
+  var payload = {"action": "firmware/download", "parameters": [{"name":"uri","value":"http://www.example.com/firmware.tgz"},{"name":"name","value":"firmwareName"},{"name":"version","value":"0.0.2"}], "devices": [{"typeId":config.type,"deviceId":config.id}]};
 
   request.post({url:host,json:payload,auth:{user:config.apiKey,pass:config.apiToken}}, function(error, response, body) {
     if (!error && response.statusCode == 202) {
@@ -69,7 +69,7 @@ function sendUpdateRequest() {
   console.log('Initiate firmware update');
 
   var host = 'https://'+config.org+'.internetofthings.ibmcloud.com/api/v0002/mgmt/requests';
-  var payload = {"action": "firmware/update", "devices": [{"typeId":"Performance","deviceId":"perftestdeviceB"}]};
+  var payload = {"action": "firmware/update", "devices": [{"typeId":config.type,"deviceId":config.id}]};
 
   request.post({url:host,json:payload,auth:{user:config.apiKey,pass:config.apiToken}}, function(error, response, body) {
     if (!error && response.statusCode == 202) {
